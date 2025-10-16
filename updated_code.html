@@ -1,0 +1,1057 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <title>Melbourne Air Quality Dashboard 2020</title>
+        
+        <!-- Leaflet CSS -->
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        
+        <!-- Chart.js for statistics -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        
+        <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #map {
+            width: 70%;
+            height: 100%;
+            float: left;
+        }
+        
+        #sidebar {
+            width: 30%;
+            height: 100%;
+            float: right;
+            background: #f8f9fa;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .control-panel {
+            padding: 20px;
+            background: white;
+            margin: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+        }
+        
+        h3 {
+            font-size: 16px;
+            color: #34495e;
+            margin-bottom: 10px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        /* Pollutant Toggle Buttons */
+        .pollutant-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .pollutant-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .pollutant-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .pollutant-btn.active-no2 {
+            background: linear-gradient(135deg, #9c27b0 0%, #e91e63 100%);
+            color: white;
+            border-color: #9c27b0;
+        }
+        
+        .pollutant-btn.active-co {
+            background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
+            color: white;
+            border-color: #ff9800;
+        }
+        
+        /* Month Dropdown */
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 15px;
+            background: white;
+            cursor: pointer;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        /* Time Slider */
+        .slider-container {
+            margin: 20px 0;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .month-display {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-top: 10px;
+            padding: 10px;
+            background: #ecf0f1;
+            border-radius: 6px;
+        }
+        
+        /* Statistics */
+        .stats-box {
+            background: #ffffff;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+            border-radius: 4px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            font-weight: 600;
+            color: #7f8c8d;
+            font-size: 13px;
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 13px;
+        }
+        
+        /* Chart Container */
+        #chartContainer {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        canvas {
+            max-height: 250px;
+        }
+        
+        /* Play Button */
+        .play-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            margin-top: 15px;
+            transition: all 0.3s;
+        }
+        
+        .play-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* Data Mode Toggle */
+        .data-mode-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .mode-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .mode-btn.active {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            color: white;
+            border-color: #27ae60;
+        }
+        
+        /* Live marker pulse animation */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(39, 174, 96, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(39, 174, 96, 0); }
+        }
+        
+        .live-marker {
+            animation: pulse 2s infinite;
+        }
+        
+        /* Legend */
+        .legend {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        
+        .legend-color {
+            width: 30px;
+            height: 18px;
+            margin-right: 10px;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            margin: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        
+        /* Sensor Info */
+        .sensor-info {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #3498db;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .sensor-info strong {
+            color: #2980b9;
+        }
+        
+        @media (max-width: 768px) {
+            #map {
+                width: 100%;
+                height: 60%;
+                float: none;
+            }
+            
+            #sidebar {
+                width: 100%;
+                height: 40%;
+                float: none;
+            }
+        }
+        </style>
+    </head>
+    <body>
+        <div id="map"></div>
+        
+        <div id="sidebar">
+            <div class="header">
+                <h1>🌍 Melbourne Air Quality 2020</h1>
+                <p>Interactive Dashboard - NO₂ & CO Analysis</p>
+            </div>
+            
+            <div class="control-panel">
+                <h2>📊 Controls</h2>
+                
+                <label>Select Pollutant:</label>
+                <div class="pollutant-toggle">
+                    <button class="pollutant-btn active-no2" id="no2Btn" onclick="switchPollutant('NO2')">
+                        NO₂ (Nitrogen Dioxide)
+                    </button>
+                    <button class="pollutant-btn" id="coBtn" onclick="switchPollutant('CO')">
+                        CO (Carbon Monoxide)
+                    </button>
+                </div>
+                
+                <label>Select Month (Dropdown):</label>
+                <select id="monthDropdown" onchange="updateFromDropdown()">
+                    <option value="1">January 2020</option>
+                    <option value="2">February 2020</option>
+                    <option value="3">March 2020</option>
+                    <option value="4">April 2020</option>
+                    <option value="5">May 2020</option>
+                    <option value="6">June 2020</option>
+                    <option value="7">July 2020</option>
+                    <option value="8">August 2020</option>
+                    <option value="9">September 2020</option>
+                    <option value="10">October 2020</option>
+                    <option value="11">November 2020</option>
+                    <option value="12">December 2020</option>
+                </select>
+                
+                <div class="slider-container">
+                    <label>Time Slider:</label>
+                    <input type="range" id="monthSlider" min="1" max="12" value="1" oninput="updateFromSlider()">
+                    <div class="month-display" id="monthDisplay">January 2020</div>
+                </div>
+                
+                <button class="play-btn" id="playBtn" onclick="togglePlayPause()">
+                    ▶ Play Timeline
+                </button>
+            </div>
+            
+            <div class="control-panel">
+                <h2>🔄 Data Source</h2>
+                
+                <div class="data-mode-toggle">
+                    <button class="mode-btn active" id="historicalBtn" onclick="switchDataMode('historical')">
+                        📊 Historical 2020
+                    </button>
+                    <button class="mode-btn" id="liveBtn" onclick="switchDataMode('live')">
+                        📡 Live Data
+                    </button>
+                </div>
+                
+                <div id="liveStatus" style="display:none; margin-top:15px;">
+                    <div class="stats-box" style="border-left-color:#27ae60;">
+                        <div class="stat-item">
+                            <span class="stat-label">Status:</span>
+                            <span class="stat-value" style="color:#27ae60;" id="liveStatusText">● Connected</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Last Updated:</span>
+                            <span class="stat-value" id="liveUpdateTime">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Active Stations:</span>
+                            <span class="stat-value" id="liveStationCount">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-panel">
+                <h2>📈 Monthly Statistics</h2>
+                <div class="stats-box">
+                    <div class="stat-item">
+                        <span class="stat-label">Current Month:</span>
+                        <span class="stat-value" id="statMonth">January 2020</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Pollutant:</span>
+                        <span class="stat-value" id="statPollutant">NO₂</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Sensor Stations:</span>
+                        <span class="stat-value" id="statStations">Loading...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Avg Concentration:</span>
+                        <span class="stat-value" id="statAvg">Loading...</span>
+                    </div>
+                </div>
+                
+                <div id="chartContainer">
+                    <h3>Annual Trend</h3>
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="control-panel legend">
+                <h2>🎨 Legend</h2>
+                <div id="legendContent">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+            
+            <div class="control-panel sensor-info">
+                <strong>💡 About the Data:</strong><br>
+                • <strong>Source:</strong> EPA Victoria Ground Sensors<br>
+                • <strong>Satellite:</strong> Sentinel-5P TROPOMI<br>
+                • <strong>Period:</strong> January - December 2020<br>
+                • <strong>Region:</strong> Greater Melbourne<br><br>
+                <em>Click on sensor markers for detailed station information</em>
+            </div>
+        </div>
+        
+        <!-- Include Leaflet and other scripts -->
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet-svg-shape-markers.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="data/monthly_pollutant_averages_mv_25.js"></script>
+        <script src="data/sensordatapollutant_26.js"></script>
+        
+        <script>
+        // ============================================
+        // GLOBAL STATE
+        // ============================================
+        let currentPollutant = 'NO2';
+        let currentMonth = 1;
+        let isPlaying = false;
+        let playInterval = null;
+        let trendChart = null;
+        let dataMode = 'historical';
+        let liveDataLayer = null;
+        let liveRefreshInterval = null;
+        const AQICN_TOKEN = '6fb912c05606bca9b1b674532bfb77651e237552';  // ← PUT YOUR AQICN TOKEN HERE
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+        
+        // ============================================
+        // MAP INITIALIZATION
+        // ============================================
+        var map = L.map('map', {
+            zoomControl: true,
+            maxZoom: 28,
+            minZoom: 1
+        }).fitBounds([[-39.02148058252422,143.82688106796132],[-36.92148058252431,146.2210558252428]]);
+        
+        map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a> | Melbourne Air Quality Dashboard');
+        
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        
+        // ============================================
+        // BASEMAP
+        // ============================================
+        var basemap = L.tileLayer('http://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            minZoom: 1,
+            maxZoom: 28
+        }).addTo(map);
+        
+        // ============================================
+        // STORE ALL LAYERS
+        // ============================================
+        const layers = {
+            NO2: [],
+            CO: []
+        };
+        
+        // NO2 Layers (12 months)
+        const no2Months = [
+            {month: 1, img: 'data/NO2_202001_1.png'},
+            {month: 2, img: 'data/NO2_202002_2.png'},
+            {month: 3, img: 'data/NO2_202003_3.png'},
+            {month: 4, img: 'data/NO2_202004_4.png'},
+            {month: 5, img: 'data/NO2_202005_5.png'},
+            {month: 6, img: 'data/NO2_202006_6.png'},
+            {month: 7, img: 'data/NO2_202007_7.png'},
+            {month: 8, img: 'data/NO2_202008_8.png'},
+            {month: 9, img: 'data/NO2_202009_9.png'},
+            {month: 10, img: 'data/NO2_202010_10.png'},
+            {month: 11, img: 'data/NO2_202011_11.png'},
+            {month: 12, img: 'data/NO2_202012_12.png'}
+        ];
+        
+        // CO Layers (12 months)
+        const coMonths = [
+            {month: 1, img: 'data/COJan_13.png'},
+            {month: 2, img: 'data/COFeb_14.png'},
+            {month: 3, img: 'data/COMar_15.png'},
+            {month: 4, img: 'data/COApr_16.png'},
+            {month: 5, img: 'data/COMay_17.png'},
+            {month: 6, img: 'data/COJun_18.png'},
+            {month: 7, img: 'data/COJul_19.png'},
+            {month: 8, img: 'data/COAug_20.png'},
+            {month: 9, img: 'data/COSep_21.png'},
+            {month: 10, img: 'data/COOct_22.png'},
+            {month: 11, img: 'data/CONov_23.png'},
+            {month: 12, img: 'data/CODec_24.png'}
+        ];
+        
+        const imgBounds = [[-38.510176155594095,144.33066020609962],[-37.17017002605642,145.88066729623648]];
+        
+        // Create NO2 layers
+        no2Months.forEach(item => {
+            const layer = L.imageOverlay(item.img, imgBounds, {opacity: 0});
+            layers.NO2[item.month] = layer;
+            layer.addTo(map);
+        });
+        
+        // Create CO layers
+        coMonths.forEach(item => {
+            const layer = L.imageOverlay(item.img, imgBounds, {opacity: 0});
+            layers.CO[item.month] = layer;
+            layer.addTo(map);
+        });
+        
+        // ============================================
+        // SENSOR LAYERS
+        // ============================================
+        
+        function pop_sensordatapollutant_26(feature, layer) {
+            var popupContent = '<table style="width:100%; font-size:12px;">\
+                    <tr><td colspan="2" style="background:#3498db; color:white; padding:8px; font-weight:bold;">EPA Sensor Station</td></tr>\
+                    <tr><th style="text-align:left; padding:5px;">Station Name:</th>\
+                        <td style="padding:5px;">' + (feature.properties['station_na'] || 'N/A') + '</td></tr>\
+                    <tr><th style="text-align:left; padding:5px;">Station ID:</th>\
+                        <td style="padding:5px;">' + (feature.properties['station_id'] || 'N/A') + '</td></tr>\
+                    <tr><th style="text-align:left; padding:5px;">Pollutant:</th>\
+                        <td style="padding:5px;">' + (feature.properties['pollutant_'] || 'N/A') + '</td></tr>\
+                    <tr><th style="text-align:left; padding:5px;">Unit:</th>\
+                        <td style="padding:5px;">' + (feature.properties['unit'] || 'N/A') + '</td></tr>\
+                    <tr><th style="text-align:left; padding:5px;">Reading Month:</th>\
+                        <td style="padding:5px;">' + (feature.properties['reading_mo'] || 'N/A') + '</td></tr>\
+                    <tr><th style="text-align:left; padding:5px;">Monthly Average:</th>\
+                        <td style="padding:5px; font-weight:bold; color:#e74c3c;">' + (feature.properties['monthly_av'] !== null ? feature.properties['monthly_av'].toFixed(2) : 'N/A') + '</td></tr>\
+                </table>';
+            layer.bindPopup(popupContent, { maxHeight: 400 });
+        }
+        
+        function style_sensordatapollutant_26() {
+            return {
+                radius: 6.0,
+                opacity: 1,
+                color: 'rgba(0,31,63,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2,
+                fill: true,
+                fillOpacity: 0.8,
+                fillColor: 'rgba(0,31,63,0.8)',
+                interactive: true,
+            }
+        }
+        
+        var layer_sensordatapollutant_26 = new L.geoJson(json_sensordatapollutant_26, {
+            attribution: '',
+            interactive: true,
+            onEachFeature: pop_sensordatapollutant_26,
+            pointToLayer: function (feature, latlng) {
+                if (L.shapeMarker) {
+                    return L.shapeMarker(latlng, {
+                        shape: 'triangle',
+                        radius: 8,
+                        color: '#001f3f',
+                        weight: 2,
+                        fillColor: '#001f3f',
+                        fillOpacity: 0.8
+                    });
+                } else {
+                    return L.circleMarker(latlng, style_sensordatapollutant_26());
+                }
+            },
+        }).addTo(map);
+        
+        // ============================================
+        // LAYER CONTROL FUNCTIONS
+        // ============================================
+        
+        function updateMap() {
+            for (let pollutant in layers) {
+                layers[pollutant].forEach((layer, idx) => {
+                    if (layer) layer.setOpacity(0);
+                });
+            }
+            
+            if (layers[currentPollutant][currentMonth]) {
+                layers[currentPollutant][currentMonth].setOpacity(1);
+            }
+            
+            document.getElementById('monthDisplay').textContent = monthNames[currentMonth - 1] + ' 2020';
+            document.getElementById('monthDropdown').value = currentMonth;
+            document.getElementById('monthSlider').value = currentMonth;
+            document.getElementById('statMonth').textContent = monthNames[currentMonth - 1] + ' 2020';
+            document.getElementById('statPollutant').textContent = currentPollutant === 'NO2' ? 'NO₂' : 'CO';
+            
+            updateStatistics();
+        }
+        
+        function switchPollutant(pollutant) {
+            currentPollutant = pollutant;
+            
+            const no2Btn = document.getElementById('no2Btn');
+            const coBtn = document.getElementById('coBtn');
+            
+            if (pollutant === 'NO2') {
+                no2Btn.className = 'pollutant-btn active-no2';
+                coBtn.className = 'pollutant-btn';
+            } else {
+                coBtn.className = 'pollutant-btn active-co';
+                no2Btn.className = 'pollutant-btn';
+            }
+            
+            updateMap();
+            updateChart();
+        }
+        
+        function updateFromDropdown() {
+            currentMonth = parseInt(document.getElementById('monthDropdown').value);
+            updateMap();
+        }
+        
+        function updateFromSlider() {
+            currentMonth = parseInt(document.getElementById('monthSlider').value);
+            updateMap();
+        }
+        
+        // ============================================
+        // PLAY/PAUSE ANIMATION
+        // ============================================
+        
+        function togglePlayPause() {
+            const btn = document.getElementById('playBtn');
+            
+            if (!isPlaying) {
+                isPlaying = true;
+                btn.textContent = '⏸ Pause';
+                btn.style.background = 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)';
+                
+                playInterval = setInterval(() => {
+                    currentMonth++;
+                    if (currentMonth > 12) currentMonth = 1;
+                    updateMap();
+                }, 1500);
+            } else {
+                isPlaying = false;
+                btn.textContent = '▶ Play Timeline';
+                btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                clearInterval(playInterval);
+            }
+        }
+        
+        // ============================================
+        // STATISTICS
+        // ============================================
+        
+        function updateStatistics() {
+            const currentData = json_sensordatapollutant_26.features.filter(f => {
+                const readingMonth = f.properties.reading_mo;
+                const pollutantName = f.properties.pollutant_;
+                
+                const matchMonth = readingMonth && (
+                    readingMonth.includes(currentMonth.toString().padStart(2, '0')) ||
+                    readingMonth.toLowerCase().includes(monthNames[currentMonth - 1].toLowerCase())
+                );
+                
+                const matchPollutant = pollutantName && (
+                    (currentPollutant === 'NO2' && pollutantName.includes('NO2')) ||
+                    (currentPollutant === 'CO' && pollutantName.includes('CO') && !pollutantName.includes('NO2'))
+                );
+                
+                return matchMonth && matchPollutant;
+            });
+            
+            if (currentData.length > 0) {
+                const values = currentData.map(f => f.properties.monthly_av).filter(v => v !== null);
+                const avg = values.reduce((a, b) => a + b, 0) / values.length;
+                
+                document.getElementById('statStations').textContent = currentData.length;
+                document.getElementById('statAvg').textContent = avg.toFixed(2) + ' µg/m³';
+            } else {
+                document.getElementById('statStations').textContent = 'No data';
+                document.getElementById('statAvg').textContent = 'No data';
+            }
+        }
+        
+        // ============================================
+        // TREND CHART
+        // ============================================
+        
+        function updateChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            const monthlyData = [];
+            
+            for (let m = 1; m <= 12; m++) {
+                const monthData = json_sensordatapollutant_26.features.filter(f => {
+                    const readingMonth = f.properties.reading_mo;
+                    const pollutantName = f.properties.pollutant_;
+                    
+                    const matchMonth = readingMonth && (
+                        readingMonth.includes(m.toString().padStart(2, '0')) ||
+                        readingMonth.toLowerCase().includes(monthNames[m - 1].toLowerCase())
+                    );
+                    
+                    const matchPollutant = pollutantName && (
+                        (currentPollutant === 'NO2' && pollutantName.includes('NO2')) ||
+                        (currentPollutant === 'CO' && pollutantName.includes('CO') && !pollutantName.includes('NO2'))
+                    );
+                    
+                    return matchMonth && matchPollutant;
+                });
+                
+                if (monthData.length > 0) {
+                    const values = monthData.map(f => f.properties.monthly_av).filter(v => v !== null);
+                    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+                    monthlyData.push(avg);
+                } else {
+                    monthlyData.push(null);
+                }
+            }
+            
+            if (trendChart) {
+                trendChart.destroy();
+            }
+            
+            const color = currentPollutant === 'NO2' ? '#9c27b0' : '#ff8f00';
+            
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                        label: currentPollutant + ' Concentration',
+                        data: monthlyData,
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointBackgroundColor: color,
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Concentration (µg/m³)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Month'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // ============================================
+        // DATA MODE SWITCHING
+        // ============================================
+        
+        function switchDataMode(mode) {
+            dataMode = mode;
+            
+            const historicalBtn = document.getElementById('historicalBtn');
+            const liveBtn = document.getElementById('liveBtn');
+            const liveStatus = document.getElementById('liveStatus');
+            
+            if (mode === 'historical') {
+                historicalBtn.classList.add('active');
+                liveBtn.classList.remove('active');
+                liveStatus.style.display = 'none';
+                
+                stopLiveUpdates();
+                updateMap();
+                
+                document.getElementById('monthDropdown').disabled = false;
+                document.getElementById('monthSlider').disabled = false;
+                document.getElementById('playBtn').disabled = false;
+                document.querySelector('.pollutant-toggle').style.opacity = '1';
+                document.querySelector('.pollutant-toggle').style.pointerEvents = 'auto';
+                
+            } else if (mode === 'live') {
+                liveBtn.classList.add('active');
+                historicalBtn.classList.remove('active');
+                liveStatus.style.display = 'block';
+                
+                hideHistoricalLayers();
+                
+                document.getElementById('monthDropdown').disabled = true;
+                document.getElementById('monthSlider').disabled = true;
+                document.getElementById('playBtn').disabled = true;
+                document.querySelector('.pollutant-toggle').style.opacity = '0.5';
+                document.querySelector('.pollutant-toggle').style.pointerEvents = 'none';
+                
+                fetchLiveData();
+                startLiveUpdates();
+            }
+        }
+        
+        function hideHistoricalLayers() {
+            for (let pollutant in layers) {
+                layers[pollutant].forEach((layer, idx) => {
+                    if (layer) layer.setOpacity(0);
+                });
+            }
+        }
+        
+        // ============================================
+        // LIVE DATA FUNCTIONS
+        // ============================================
+        
+                async function fetchLiveData() {
+            try {
+                document.getElementById('liveStatusText').innerHTML = '● Fetching...';
+                document.getElementById('liveStatusText').style.color = '#f39c12';
+                
+                // Melbourne station IDs from AQICN
+                const melbourneStations = [
+                    { id: '@252598', name: 'Alphington' },
+                    { id: '@252600', name: 'Brighton' },
+                    { id: '@252602', name: 'Dandenong' },
+                    { id: '@252603', name: 'Footscray' },
+                    { id: '@252605', name: 'Point Cook' },
+                    { id: '@252607', name: 'Mooroolbark' }
+                ];
+                
+                const stationPromises = melbourneStations.map(station =>
+                    fetch(`https://api.waqi.info/feed/${station.id}/?token=${AQICN_TOKEN}`)
+                        .then(res => res.json())
+                        .then(data => ({ ...data, customName: station.name }))
+                        .catch(err => null)
+                );
+                
+                const results = await Promise.all(stationPromises);
+                const validStations = results.filter(r => r && r.status === 'ok');
+                
+                if (validStations.length > 0) {
+                    displayLiveData(validStations);
+                    document.getElementById('liveStatusText').innerHTML = '● Connected';
+                    document.getElementById('liveStatusText').style.color = '#27ae60';
+                    document.getElementById('liveUpdateTime').textContent = new Date().toLocaleTimeString();
+                    document.getElementById('liveStationCount').textContent = validStations.length;
+                } else {
+                    throw new Error('CORS blocked - see notes');
+                }
+                
+            } catch (error) {
+                console.error('AQICN API Error:', error);
+                document.getElementById('liveStatusText').innerHTML = '● CORS Error';
+                document.getElementById('liveStatusText').style.color = '#e74c3c';
+                document.getElementById('liveStationCount').textContent = 'Blocked by browser';
+                alert('⚠️ CORS Issue: The browser blocks AQICN API requests. Your tutor can help with:\n\n1. CORS browser extension\n2. Backend proxy server\n3. Run from local server');
+            }
+        }
+
+        
+        function displayLiveData(data) {
+            if (liveDataLayer) {
+                map.removeLayer(liveDataLayer);
+            }
+            
+            liveDataLayer = L.layerGroup();
+            
+            if (data.records && data.records.length > 0) {
+                data.records.forEach(site => {
+                    if (site.geometry && site.geometry.coordinates) {
+                        const coords = site.geometry.coordinates;
+                        const lat = coords[0];
+                        const lon = coords[1];
+                        
+                        let latestValue = null;
+                        let unit = '';
+                        let healthAdvice = 'Unknown';
+                        let healthColor = '#95a5a6';
+                        
+                        if (site.parameters) {
+                            site.parameters.forEach(param => {
+                                if ((currentPollutant === 'NO2' && param.name === 'NO2') ||
+                                    (currentPollutant === 'CO' && param.name === 'CO')) {
+                                    
+                                    if (param.timeSeriesReadings && param.timeSeriesReadings.length > 0) {
+                                        const oneHrReading = param.timeSeriesReadings.find(ts => ts.timeSeriesName === '1HR_AV');
+                                        if (oneHrReading && oneHrReading.readings && oneHrReading.readings.length > 0) {
+                                            const reading = oneHrReading.readings[0];
+                                            latestValue = reading.averageValue;
+                                            unit = reading.unit;
+                                            healthAdvice = reading.healthAdvice;
+                                            healthColor = reading.healthAdviceColor || '#95a5a6';
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                        
+                        const marker = L.circleMarker([lat, lon], {
+                            radius: 10,
+                            fillColor: healthColor,
+                            color: '#fff',
+                            weight: 3,
+                            fillOpacity: 0.9,
+                            className: 'live-marker'
+                        });
+                        
+                        const popupContent = `
+                            <div style="min-width:200px;">
+                                <h3 style="margin:0 0 10px 0; color:#2c3e50; font-size:16px;">
+                                    📍 ${site.siteName}
+                                </h3>
+                                <div style="background:#ecf0f1; padding:10px; border-radius:5px; margin-bottom:10px;">
+                                    <strong style="color:#e74c3c; font-size:18px;">
+                                        ${latestValue !== null ? latestValue.toFixed(1) : 'N/A'} ${unit}
+                                    </strong>
+                                </div>
+                                <table style="width:100%; font-size:12px;">
+                                    <tr>
+                                        <td style="padding:5px 0;"><strong>Pollutant:</strong></td>
+                                        <td>${currentPollutant}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:5px 0;"><strong>Health Status:</strong></td>
+                                        <td style="color:${healthColor}; font-weight:bold;">${healthAdvice}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:5px 0;"><strong>Site Type:</strong></td>
+                                        <td>${site.siteType}</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2" style="padding-top:10px; font-size:11px; color:#7f8c8d;">
+                                            🕒 Live data · Updated ${new Date().toLocaleTimeString()}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        `;
+                        
+                        marker.bindPopup(popupContent);
+                        liveDataLayer.addLayer(marker);
+                    }
+                });
+            }
+            
+            liveDataLayer.addTo(map);
+        }
+        
+        function startLiveUpdates() {
+            liveRefreshInterval = setInterval(() => {
+                fetchLiveData();
+            }, 600000);
+        }
+        
+        function stopLiveUpdates() {
+            if (liveRefreshInterval) {
+                clearInterval(liveRefreshInterval);
+                liveRefreshInterval = null;
+            }
+            
+            if (liveDataLayer) {
+                map.removeLayer(liveDataLayer);
+                liveDataLayer = null;
+            }
+        }
+        
+        // ============================================
+        // INITIALIZE ON PAGE LOAD
+        // ============================================
+        updateMap();
+        updateChart();
+        
+        </script>
+    </body>
+</html>
